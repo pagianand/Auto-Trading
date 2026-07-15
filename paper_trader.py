@@ -4,8 +4,8 @@ Paper trading engine — runs the strategies from the watchlist every time it's 
 Designed to be called on a schedule by a GitHub Action (see .github/workflows/watchlist.yml).
 
 Strategies:
-  - AMD, META: intraday VWAP mean-reversion, filtered by 200-day trend
-      BUY  when RSI(2) < 15 AND price is >0.2% below today's session VWAP
+  - SNOW, AMD, GOOGL, ROKU, META, ARM: intraday VWAP mean-reversion, trend-filtered
+      BUY  when RSI(2) < 25 AND price is >0.2% below today's session VWAP
            AND price is above its 200-day SMA (only buy dips in an uptrend)
       EXIT when price crosses back above VWAP, or at end of trading day
   - TSLA: 15-minute opening range breakout (ORB)
@@ -37,12 +37,16 @@ TRADES_CSV = os.path.join(REPO_ROOT, "data", "trades.csv")
 ET = ZoneInfo("America/New_York")
 
 WATCHLIST = {
+    "SNOW": {"strategy": "vwap_meanrev"},
     "AMD": {"strategy": "vwap_meanrev"},
+    "GOOGL": {"strategy": "vwap_meanrev"},
+    "ROKU": {"strategy": "vwap_meanrev"},
     "META": {"strategy": "vwap_meanrev"},
+    "ARM": {"strategy": "vwap_meanrev"},
     "TSLA": {"strategy": "orb"},
 }
 
-MEANREV_ENTRY_RSI = 15
+MEANREV_ENTRY_RSI = 25
 MEANREV_MIN_DIST_PCT = 0.2
 
 
