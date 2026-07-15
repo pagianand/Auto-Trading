@@ -4,8 +4,9 @@ Paper trading engine — runs the strategies from the watchlist every time it's 
 Designed to be called on a schedule by a GitHub Action (see .github/workflows/watchlist.yml).
 
 Strategies:
-  - AMD, META: intraday VWAP mean-reversion
+  - AMD, META: intraday VWAP mean-reversion, filtered by 200-day trend
       BUY  when RSI(2) < 15 AND price is >0.2% below today's session VWAP
+           AND price is above its 200-day SMA (only buy dips in an uptrend)
       EXIT when price crosses back above VWAP, or at end of trading day
   - TSLA: 15-minute opening range breakout (ORB)
       BUY  on a close above the high of the first 15 minutes of trading
@@ -96,6 +97,19 @@ def fetch_today_intraday(symbol):
     return df
 
 
+def is_above_200sma(symbol):
+    """Trend filter: only allow mean-reversion longs when price is above its
+    200-day simple moving average, i.e. the stock is in a longer-term uptrend.
+    Returns True/False, or None if there isn't enough daily history yet."""
+    t = yf.Ticker(symbol)
+    daily = t.history(period="300d", interval="1d")
+    if daily.empty or len(daily) < 200:
+        return None
+    sma200 = daily["Close"].rolling(200).mean().iloc[-1]
+    last_close = daily["Close"].iloc[-1]
+    return bool(last_close > sma200)
+
+
 def evaluate_vwap_meanrev(symbol, state):
     df = fetch_today_intraday(symbol)
     if df is None or len(df) < 3:
@@ -112,16 +126,22 @@ def evaluate_vwap_meanrev(symbol, state):
     now_iso = datetime.now(timezone.utc).isoformat()
 
     if open_pos is None:
-        if rsi < MEANREV_ENTRY_RSI and dist_pct < -MEANREV_MIN_DIST_PCT:
+        trend_ok = is_above_200sma(symbol)
+        trend_note = "above 200SMA" if trend_ok else ("below 200SMA" if trend_ok is False else "200SMA unknown")
+        signal_met = rsi < MEANREV_ENTRY_RSI and dist_pct < -MEANREV_MIN_DIST_PCT
+        if signal_met and trend_ok:
             state["open_positions"][symbol] = {
                 "strategy": "vwap_meanrev",
                 "entry_price": price,
                 "entry_time": now_iso,
             }
-            print(f"[{symbol}] ENTER long @ {price:.2f} (RSI2={rsi:.1f}, dist_vwap={dist_pct:.2f}%)")
+            print(f"[{symbol}] ENTER long @ {price:.2f} (RSI2={rsi:.1f}, dist_vwap={dist_pct:.2f}%, {trend_note})")
+        elif signal_met and not trend_ok:
+            print(f"[{symbol}] signal met but BLOCKED by trend filter "
+                  f"(price={price:.2f}, vwap={vwap:.2f}, dist={dist_pct:.2f}%, rsi2={rsi:.1f}, {trend_note})")
         else:
             print(f"[{symbol}] no entry (price={price:.2f}, vwap={vwap:.2f}, "
-                  f"dist={dist_pct:.2f}%, rsi2={rsi:.1f})")
+                  f"dist={dist_pct:.2f}%, rsi2={rsi:.1f}, {trend_note})")
     else:
         now_et = datetime.now(ET)
         force_close = now_et.time() >= dtime(15, 55)
