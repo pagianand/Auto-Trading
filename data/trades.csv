@@ -1,0 +1,2 @@
+symbol,strategy,entry_time,exit_time,entry_price,exit_price,return_pct,forced_close
+AMD,vwap_meanrev,2026-07-15T15:51:48.743184+00:00,2026-07-15T18:47:05.712539+00:00,516.47802734375,529.0999755859375,2.444,False
