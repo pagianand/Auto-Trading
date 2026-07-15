@@ -30,6 +30,7 @@ jobs:
         run: |
           git config user.name "paper-trading-bot"
           git config user.email "actions@users.noreply.github.com"
-          git add data/state.json data/trades.csv
+          git add data/state.json
+          [ -f data/trades.csv ] && git add data/trades.csv
           git diff --quiet --cached || git commit -m "Update paper trading state [skip ci]"
           git push
