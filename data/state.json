@@ -9,10 +9,15 @@
       "strategy": "vwap_meanrev",
       "entry_price": 500.0799865722656,
       "entry_time": "2026-07-16T16:38:38.532820+00:00"
+    },
+    "META": {
+      "strategy": "vwap_meanrev",
+      "entry_price": 668.4600219726562,
+      "entry_time": "2026-07-16T17:51:39.208433+00:00"
     }
   },
   "orb_entered_date": {
     "TSLA": "2026-07-16"
   },
-  "last_run": "2026-07-16T12:38:37.252671-04:00"
+  "last_run": "2026-07-16T13:51:38.133607-04:00"
 }
