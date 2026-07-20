@@ -14,10 +14,15 @@
       "strategy": "vwap_meanrev",
       "entry_price": 271.0950012207031,
       "entry_time": "2026-07-20T16:45:51.320482+00:00"
+    },
+    "ROKU": {
+      "strategy": "vwap_meanrev",
+      "entry_price": 144.4550018310547,
+      "entry_time": "2026-07-20T18:45:52.107095+00:00"
     }
   },
   "orb_entered_date": {
     "TSLA": "2026-07-16"
   },
-  "last_run": "2026-07-20T12:45:47.753868-04:00"
+  "last_run": "2026-07-20T14:45:51.269486-04:00"
 }
