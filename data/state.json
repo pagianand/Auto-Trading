@@ -1,20 +1,5 @@
 {
   "open_positions": {
-    "AMD": {
-      "strategy": "vwap_meanrev",
-      "entry_price": 509.75,
-      "entry_time": "2026-07-20T16:45:49.106961+00:00"
-    },
-    "GOOGL": {
-      "strategy": "vwap_meanrev",
-      "entry_price": 354.9952087402344,
-      "entry_time": "2026-07-20T16:45:49.606185+00:00"
-    },
-    "ROKU": {
-      "strategy": "vwap_meanrev",
-      "entry_price": 144.4550018310547,
-      "entry_time": "2026-07-20T18:45:52.107095+00:00"
-    },
     "SNOW": {
       "strategy": "vwap_meanrev",
       "entry_price": 274.0,
@@ -29,5 +14,5 @@
   "orb_entered_date": {
     "TSLA": "2026-07-21"
   },
-  "last_run": "2026-07-21T11:05:24.565207-04:00"
+  "last_run": "2026-07-21T12:40:05.235183-04:00"
 }
