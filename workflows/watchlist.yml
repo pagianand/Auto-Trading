@@ -2,7 +2,7 @@ name: Paper Trading Watchlist
 
 on:
   schedule:
-    - cron: '*/5 13-20 * * 1-5'
+    - cron: '*/5 13-21 * * 1-5'
   workflow_dispatch: {}
 
 permissions:
@@ -24,7 +24,40 @@ jobs:
         run: pip install -r requirements.txt
 
       - name: Run paper trader
-        run: python paper_trader.py
+        run: python paper_trader.py | tee run_output.txt
+
+      - name: Check for signals
+        id: signal
+        run: |
+          if grep -E "ENTER long|EXIT @" run_output.txt > signals.txt; then
+            echo "found=true" >> $GITHUB_OUTPUT
+            {
+              echo "details<<EOF"
+              cat signals.txt
+              echo "EOF"
+            } >> $GITHUB_OUTPUT
+          else
+            echo "found=false" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Send email alert
+        if: steps.signal.outputs.found == 'true'
+        uses: dawidd6/action-send-mail@v3
+        with:
+          server_address: smtp.gmail.com
+          server_port: 465
+          username: ${{ secrets.MAIL_USERNAME }}
+          password: ${{ secrets.MAIL_PASSWORD }}
+          to: ${{ secrets.MAIL_TO }}
+          from: Paper Trading Bot
+          subject: "📈 Paper bot signal fired"
+          body: |
+            The paper trading bot just logged:
+
+            ${{ steps.signal.outputs.details }}
+
+            This is a PAPER trade (simulated). If you want to mirror it with
+            real money, message Claude to review a real order.
 
       - name: Commit updated state and trade log
         run: |
