@@ -1,27 +1,28 @@
 #!/usr/bin/env python3
 """
 Paper trading engine — runs the strategies from the watchlist every time it's invoked.
-Designed to be called on a schedule by a GitHub Action (see .github/workflows/watchlist.yml).
 
 Strategies:
-  - SNOW, AMD, GOOGL, ROKU, META, ARM: intraday VWAP mean-reversion, trend-filtered
-      BUY  when RSI(2) < 25 AND price is >0.2% below today's session VWAP
-           AND price is above its 200-day SMA (only buy dips in an uptrend)
-      EXIT when price crosses back above VWAP, or at end of trading day
-  - TSLA: 15-minute opening range breakout (ORB)
-      BUY  on a close above the high of the first 15 minutes of trading
-      STOP if price falls back below the opening range low
-      EXIT otherwise at end of trading day
+  - vwap_meanrev (SNOW, AMD, GOOGL, ROKU, META, ARM): INTRADAY
+      BUY  when RSI(2) < 25 AND price >0.2% below session VWAP AND above 200-day SMA
+      EXIT on VWAP cross, or forced at end of day (no overnight)
+  - orb (TSLA): INTRADAY
+      BUY on close above the first-15-min range high; STOP below range low;
+      forced exit at end of day (no overnight)
+  - macd_trend (all mean-rev symbols + TSLA): SWING (multi-day, EXEMPT from
+      the no-overnight rule by design — this strategy holds days to weeks)
+      BUY  when MACD(12,26,9) line crosses above signal line while MACD < 0,
+           AND price is above the 200-day SMA
+      STOP when price closes below the 200-day SMA
+      TARGET at entry + 1.5x (entry - 200SMA at entry)   [video's 1.5R rule]
+      Backtest note (Feb 2024-Aug 2026, 7 symbols): 23 trades, profits heavily
+      concentrated in AMD; treat as UNPROVEN — paper evaluation only.
 
-No-overnight guarantee (bug fix):
-  - Force-close window starts at 15:45 ET (three cron slots instead of one)
-  - If a run happens while the market is CLOSED and positions are still open
-    (because the close-window runs were skipped by GitHub's scheduler), those
-    positions are immediately closed at the last available price and logged
-    with forced_close=True. Positions can no longer survive overnight.
-
-Data source: Yahoo Finance via the `yfinance` package (free, no API key required).
-State: positions and trade history are stored in data/state.json and data/trades.csv.
+Risk rules:
+  - Intraday strategies: force-close from 15:45 ET; after-hours reconcile closes
+    any intraday position that survived (bug fix). Swing positions are exempt.
+  - Earnings blackout: no NEW entries (any strategy) from 2 days before through
+    1 day after a scheduled earnings date. Exits are never blocked.
 
 IMPORTANT: this places no real orders. It only simulates trades and logs them.
 """
@@ -42,18 +43,27 @@ TRADES_CSV = os.path.join(REPO_ROOT, "data", "trades.csv")
 ET = ZoneInfo("America/New_York")
 
 WATCHLIST = {
-    "SNOW": {"strategy": "vwap_meanrev"},
-    "AMD": {"strategy": "vwap_meanrev"},
-    "GOOGL": {"strategy": "vwap_meanrev"},
-    "ROKU": {"strategy": "vwap_meanrev"},
-    "META": {"strategy": "vwap_meanrev"},
-    "ARM": {"strategy": "vwap_meanrev"},
-    "TSLA": {"strategy": "orb"},
+    "SNOW": {"strategies": ["vwap_meanrev", "macd_trend"]},
+    "AMD": {"strategies": ["vwap_meanrev", "macd_trend"]},
+    "GOOGL": {"strategies": ["vwap_meanrev", "macd_trend"]},
+    "ROKU": {"strategies": ["vwap_meanrev", "macd_trend"]},
+    "META": {"strategies": ["vwap_meanrev", "macd_trend"]},
+    "ARM": {"strategies": ["vwap_meanrev", "macd_trend"]},
+    "TSLA": {"strategies": ["orb", "macd_trend"]},
 }
+
+SWING_STRATEGIES = {"macd_trend"}  # exempt from EOD force-close / reconcile
 
 MEANREV_ENTRY_RSI = 25
 MEANREV_MIN_DIST_PCT = 0.2
-FORCE_CLOSE_TIME = dtime(15, 45)  # widened from 15:55 so multiple runs can catch it
+FORCE_CLOSE_TIME = dtime(15, 45)
+EARNINGS_DAYS_BEFORE = 2
+EARNINGS_DAYS_AFTER = 1
+MACD_RR = 1.5  # reward:risk multiple for the macd_trend profit target
+
+
+def pos_key(symbol, strategy):
+    return f"{symbol}:{strategy}"
 
 
 def load_state():
@@ -77,10 +87,9 @@ def append_trade(row):
 
 
 def market_is_open(now_et):
-    if now_et.weekday() >= 5:  # Sat/Sun
+    if now_et.weekday() >= 5:
         return False
-    open_t, close_t = dtime(9, 30), dtime(16, 0)
-    return open_t <= now_et.time() <= close_t
+    return dtime(9, 30) <= now_et.time() <= dtime(16, 0)
 
 
 def rsi2(closes: pd.Series) -> float:
@@ -96,7 +105,6 @@ def rsi2(closes: pd.Series) -> float:
 
 
 def fetch_today_intraday(symbol):
-    """Pull the most recent session's 5-minute bars for a symbol via yfinance."""
     t = yf.Ticker(symbol)
     df = t.history(period="1d", interval="5m", prepost=False)
     if df.empty:
@@ -107,169 +115,248 @@ def fetch_today_intraday(symbol):
     return df
 
 
+def fetch_daily(symbol, period="400d"):
+    t = yf.Ticker(symbol)
+    daily = t.history(period=period, interval="1d")
+    if daily.empty:
+        return None
+    return daily
+
+
 def last_available_price(symbol):
-    """Best-effort last price for closing stale positions when market is closed."""
     df = fetch_today_intraday(symbol)
     if df is not None and len(df) > 0:
         return float(df["close"].iloc[-1])
-    t = yf.Ticker(symbol)
-    daily = t.history(period="5d", interval="1d")
-    if not daily.empty:
+    daily = fetch_daily(symbol, "5d")
+    if daily is not None and not daily.empty:
         return float(daily["Close"].iloc[-1])
     return None
 
 
-def close_position(symbol, state, exit_price, reason):
-    """Close an open position at exit_price and log the trade."""
-    open_pos = state["open_positions"].get(symbol)
+def close_position(key, state, exit_price, reason):
+    open_pos = state["open_positions"].get(key)
     if open_pos is None:
         return
     entry_price = open_pos["entry_price"]
     ret_pct = (exit_price - entry_price) / entry_price * 100
     append_trade({
-        "symbol": symbol, "strategy": open_pos.get("strategy", "unknown"),
+        "symbol": open_pos.get("symbol", key.split(":")[0]),
+        "strategy": open_pos.get("strategy", "unknown"),
         "entry_time": open_pos["entry_time"],
         "exit_time": datetime.now(timezone.utc).isoformat(),
         "entry_price": entry_price, "exit_price": exit_price,
         "return_pct": round(ret_pct, 3),
         "forced_close": reason != "signal",
     })
-    del state["open_positions"][symbol]
-    print(f"[{symbol}] EXIT @ {exit_price:.2f} return={ret_pct:.2f}% ({reason})")
+    del state["open_positions"][key]
+    print(f"[{key}] EXIT @ {exit_price:.2f} return={ret_pct:.2f}% ({reason})")
 
 
 def reconcile_stale_positions(state):
-    """Market is closed but positions are still open (close-window runs were
-    skipped). Close everything at the last available price. This is the
-    overnight-hold bug fix."""
-    stale = list(state["open_positions"].keys())
+    """Close INTRADAY positions left open after hours. Swing positions are exempt."""
+    stale = [k for k, v in state["open_positions"].items()
+             if v.get("strategy") not in SWING_STRATEGIES]
     if not stale:
         return False
-    print(f"RECONCILE: market closed with open positions {stale} — force-closing.")
-    for symbol in stale:
+    print(f"RECONCILE: market closed with open intraday positions {stale} — force-closing.")
+    for key in stale:
+        symbol = state["open_positions"][key].get("symbol", key.split(":")[0])
         price = last_available_price(symbol)
         if price is None:
-            print(f"[{symbol}] could not fetch a price to reconcile; will retry next run",
+            print(f"[{key}] could not fetch a price to reconcile; will retry next run",
                   file=sys.stderr)
             continue
-        close_position(symbol, state, price, "reconcile: closed after hours at last price")
+        close_position(key, state, price, "reconcile: closed after hours at last price")
     return True
 
 
-def is_above_200sma(symbol):
-    """Trend filter: only allow mean-reversion longs when price is above its
-    200-day simple moving average. Returns True/False, or None if insufficient data."""
-    t = yf.Ticker(symbol)
-    daily = t.history(period="300d", interval="1d")
-    if daily.empty or len(daily) < 200:
+def is_above_200sma(symbol, daily=None):
+    if daily is None:
+        daily = fetch_daily(symbol)
+    if daily is None or len(daily) < 200:
         return None
     sma200 = daily["Close"].rolling(200).mean().iloc[-1]
-    last_close = daily["Close"].iloc[-1]
-    return bool(last_close > sma200)
+    return bool(daily["Close"].iloc[-1] > sma200)
+
+
+def in_earnings_blackout(symbol):
+    try:
+        t = yf.Ticker(symbol)
+        ed = t.earnings_dates
+        if ed is None or ed.empty:
+            return False
+        today = pd.Timestamp.now(tz="America/New_York").normalize()
+        for ts in ed.index:
+            try:
+                ts = pd.Timestamp(ts)
+                if ts.tzinfo is None:
+                    ts = ts.tz_localize("America/New_York")
+                else:
+                    ts = ts.tz_convert("America/New_York")
+                delta_days = (ts.normalize() - today).days
+                if -EARNINGS_DAYS_AFTER <= delta_days <= EARNINGS_DAYS_BEFORE:
+                    return True
+            except Exception:
+                continue
+        return False
+    except Exception as e:
+        print(f"[{symbol}] earnings lookup failed ({e}); proceeding without blackout",
+              file=sys.stderr)
+        return False
 
 
 def evaluate_vwap_meanrev(symbol, state):
+    key = pos_key(symbol, "vwap_meanrev")
     df = fetch_today_intraday(symbol)
     if df is None or len(df) < 3:
-        print(f"[{symbol}] no intraday data yet, skipping")
+        print(f"[{key}] no intraday data yet, skipping")
         return
-
     df["pv"] = df["close"] * df["volume"]
     vwap = df["pv"].sum() / df["volume"].sum()
     price = float(df["close"].iloc[-1])
     dist_pct = (price - vwap) / vwap * 100
     rsi = rsi2(df["close"])
-
-    open_pos = state["open_positions"].get(symbol)
+    open_pos = state["open_positions"].get(key)
 
     if open_pos is None:
-        trend_ok = is_above_200sma(symbol)
-        trend_note = "above 200SMA" if trend_ok else ("below 200SMA" if trend_ok is False else "200SMA unknown")
         signal_met = rsi < MEANREV_ENTRY_RSI and dist_pct < -MEANREV_MIN_DIST_PCT
-        # No fresh entries inside the force-close window
         in_close_window = datetime.now(ET).time() >= FORCE_CLOSE_TIME
-        if signal_met and trend_ok and not in_close_window:
-            state["open_positions"][symbol] = {
-                "strategy": "vwap_meanrev",
+        if signal_met and not in_close_window:
+            if in_earnings_blackout(symbol):
+                print(f"[{key}] signal met but BLOCKED: earnings blackout")
+                return
+            trend_ok = is_above_200sma(symbol)
+            if trend_ok is False:
+                print(f"[{key}] signal met but BLOCKED: below 200SMA")
+                return
+            state["open_positions"][key] = {
+                "symbol": symbol, "strategy": "vwap_meanrev",
                 "entry_price": price,
                 "entry_time": datetime.now(timezone.utc).isoformat(),
             }
-            print(f"[{symbol}] ENTER long @ {price:.2f} (RSI2={rsi:.1f}, dist_vwap={dist_pct:.2f}%, {trend_note})")
-        elif signal_met and not trend_ok:
-            print(f"[{symbol}] signal met but BLOCKED by trend filter "
-                  f"(price={price:.2f}, dist={dist_pct:.2f}%, rsi2={rsi:.1f}, {trend_note})")
+            print(f"[{key}] ENTER long @ {price:.2f} (RSI2={rsi:.1f}, dist={dist_pct:.2f}%)")
         else:
-            print(f"[{symbol}] no entry (price={price:.2f}, vwap={vwap:.2f}, "
-                  f"dist={dist_pct:.2f}%, rsi2={rsi:.1f}, {trend_note})")
+            print(f"[{key}] no entry (price={price:.2f}, vwap={vwap:.2f}, "
+                  f"dist={dist_pct:.2f}%, rsi2={rsi:.1f})")
     else:
         force_close = datetime.now(ET).time() >= FORCE_CLOSE_TIME
         if dist_pct >= 0:
-            close_position(symbol, state, price, "signal")
+            close_position(key, state, price, "signal")
         elif force_close:
-            close_position(symbol, state, price, "forced EOD close")
+            close_position(key, state, price, "forced EOD close")
         else:
-            print(f"[{symbol}] holding position, entry={open_pos['entry_price']:.2f} "
-                  f"current={price:.2f}")
+            print(f"[{key}] holding, entry={open_pos['entry_price']:.2f} current={price:.2f}")
 
 
 def evaluate_orb(symbol, state):
+    key = pos_key(symbol, "orb")
     df = fetch_today_intraday(symbol)
     if df is None or len(df) < 4:
-        print(f"[{symbol}] not enough bars yet for opening range, skipping")
+        print(f"[{key}] not enough bars yet for opening range, skipping")
         return
-
     range_high = df["high"].iloc[:3].max()
     range_low = df["low"].iloc[:3].min()
     price = float(df["close"].iloc[-1])
-
-    open_pos = state["open_positions"].get(symbol)
+    open_pos = state["open_positions"].get(key)
     now_et = datetime.now(ET)
     force_close = now_et.time() >= FORCE_CLOSE_TIME
 
     if open_pos is None:
-        already_entered_today = state.get("orb_entered_date", {}).get(symbol) == now_et.date().isoformat()
-        if not already_entered_today and price > range_high and not force_close:
-            state["open_positions"][symbol] = {
-                "strategy": "orb", "entry_price": price,
+        entered = state.get("orb_entered_date", {}).get(symbol) == now_et.date().isoformat()
+        if not entered and price > range_high and not force_close:
+            if in_earnings_blackout(symbol):
+                print(f"[{key}] breakout but BLOCKED: earnings blackout")
+                return
+            state["open_positions"][key] = {
+                "symbol": symbol, "strategy": "orb", "entry_price": price,
                 "entry_time": datetime.now(timezone.utc).isoformat(),
             }
             state.setdefault("orb_entered_date", {})[symbol] = now_et.date().isoformat()
-            print(f"[{symbol}] ENTER long @ {price:.2f} (breakout above range high {range_high:.2f})")
+            print(f"[{key}] ENTER long @ {price:.2f} (breakout above {range_high:.2f})")
         else:
-            print(f"[{symbol}] no breakout (price={price:.2f}, range={range_low:.2f}-{range_high:.2f})")
+            print(f"[{key}] no breakout (price={price:.2f}, range={range_low:.2f}-{range_high:.2f})")
     else:
         if price < range_low:
-            close_position(symbol, state, price, "stop hit")
+            close_position(key, state, price, "stop hit")
         elif force_close:
-            close_position(symbol, state, price, "forced EOD close")
+            close_position(key, state, price, "forced EOD close")
         else:
-            print(f"[{symbol}] holding position, entry={open_pos['entry_price']:.2f} current={price:.2f}")
+            print(f"[{key}] holding, entry={open_pos['entry_price']:.2f} current={price:.2f}")
+
+
+def evaluate_macd_trend(symbol, state):
+    """SWING strategy from user's video: MACD(12,26,9) cross-up below zero +
+    price above 200SMA. Stop below 200SMA; target = entry + 1.5R. Holds
+    overnight BY DESIGN. Unproven — paper evaluation."""
+    key = pos_key(symbol, "macd_trend")
+    daily = fetch_daily(symbol)
+    if daily is None or len(daily) < 210:
+        print(f"[{key}] insufficient daily history, skipping")
+        return
+    close = daily["Close"]
+    ema12 = close.ewm(span=12, adjust=False).mean()
+    ema26 = close.ewm(span=26, adjust=False).mean()
+    macd = ema12 - ema26
+    signal = macd.ewm(span=9, adjust=False).mean()
+    sma200 = close.rolling(200).mean()
+    price = float(close.iloc[-1])
+    sma_now = float(sma200.iloc[-1])
+    cross_up = macd.iloc[-1] > signal.iloc[-1] and macd.iloc[-2] <= signal.iloc[-2]
+    open_pos = state["open_positions"].get(key)
+
+    if open_pos is None:
+        if cross_up and macd.iloc[-1] < 0 and price > sma_now:
+            if in_earnings_blackout(symbol):
+                print(f"[{key}] MACD signal but BLOCKED: earnings blackout")
+                return
+            risk = price - sma_now
+            target = price + MACD_RR * risk
+            state["open_positions"][key] = {
+                "symbol": symbol, "strategy": "macd_trend",
+                "entry_price": price, "target_price": target,
+                "entry_time": datetime.now(timezone.utc).isoformat(),
+            }
+            print(f"[{key}] ENTER swing long @ {price:.2f} (stop<{sma_now:.2f}, target {target:.2f})")
+        else:
+            print(f"[{key}] no MACD entry (macd={macd.iloc[-1]:.2f}, sig={signal.iloc[-1]:.2f}, "
+                  f"price={price:.2f}, sma200={sma_now:.2f})")
+    else:
+        target = open_pos.get("target_price")
+        if price < sma_now:
+            close_position(key, state, price, "stop: below 200SMA")
+        elif target and price >= target:
+            close_position(key, state, price, "signal")
+        else:
+            print(f"[{key}] holding swing, entry={open_pos['entry_price']:.2f} "
+                  f"current={price:.2f} target={target:.2f}")
 
 
 def main():
     now_et = datetime.now(ET)
     print(f"=== Watchlist check @ {now_et.isoformat()} ===")
-
     state = load_state()
 
     if not market_is_open(now_et):
-        # Bug fix: never skip silently if positions are still open
-        if state["open_positions"]:
+        if any(v.get("strategy") not in SWING_STRATEGIES
+               for v in state["open_positions"].values()):
             reconcile_stale_positions(state)
             state["last_run"] = now_et.isoformat()
             save_state(state)
         else:
-            print("Market is closed and no open positions. Skipping.")
+            print("Market closed; no intraday positions to reconcile. Skipping.")
         return
 
     for symbol, cfg in WATCHLIST.items():
-        try:
-            if cfg["strategy"] == "vwap_meanrev":
-                evaluate_vwap_meanrev(symbol, state)
-            elif cfg["strategy"] == "orb":
-                evaluate_orb(symbol, state)
-        except Exception as e:
-            print(f"[{symbol}] ERROR: {e}", file=sys.stderr)
+        for strat in cfg["strategies"]:
+            try:
+                if strat == "vwap_meanrev":
+                    evaluate_vwap_meanrev(symbol, state)
+                elif strat == "orb":
+                    evaluate_orb(symbol, state)
+                elif strat == "macd_trend":
+                    evaluate_macd_trend(symbol, state)
+            except Exception as e:
+                print(f"[{symbol}:{strat}] ERROR: {e}", file=sys.stderr)
 
     state["last_run"] = now_et.isoformat()
     save_state(state)
