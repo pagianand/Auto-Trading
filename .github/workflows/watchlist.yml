@@ -29,7 +29,7 @@ jobs:
       - name: Check for signals
         id: signal
         run: |
-          if grep -E "ENTER long|EXIT @" run_output.txt > signals.txt; then
+          if grep -E "ENTER long|ENTER swing|EXIT @" run_output.txt > signals.txt 2>/dev/null; then
             echo "found=true" >> $GITHUB_OUTPUT
             {
               echo "details<<EOF"
@@ -41,16 +41,19 @@ jobs:
           fi
 
       - name: Send email alert
-        if: steps.signal.outputs.found == 'true'
-        uses: dawidd6/action-send-mail@v3
+        if: steps.signal.outputs.found == 'true' && env.MAIL_TO != ''
+        uses: dawidd6/action-send-mail@v4
+        env:
+          MAIL_TO: ${{ secrets.MAIL_TO }}
         with:
           server_address: smtp.gmail.com
           server_port: 465
+          secure: true
           username: ${{ secrets.MAIL_USERNAME }}
           password: ${{ secrets.MAIL_PASSWORD }}
           to: ${{ secrets.MAIL_TO }}
-          from: Paper Trading Bot
-          subject: "📈 Paper bot signal fired"
+          from: Paper Trading Bot <${{ secrets.MAIL_USERNAME }}>
+          subject: "📈 Paper bot signal — ${{ github.run_number }}"
           body: |
             The paper trading bot just logged:
 
