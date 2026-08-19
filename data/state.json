@@ -1,7 +1,20 @@
 {
-  "open_positions": {},
+  "open_positions": {
+    "AMD:vwap_meanrev": {
+      "symbol": "AMD",
+      "strategy": "vwap_meanrev",
+      "entry_price": 477.1000061035156,
+      "entry_time": "2026-08-19T13:44:35.951197+00:00"
+    },
+    "ARM:vwap_meanrev": {
+      "symbol": "ARM",
+      "strategy": "vwap_meanrev",
+      "entry_price": 257.2200012207031,
+      "entry_time": "2026-08-19T13:44:37.790391+00:00"
+    }
+  },
   "orb_entered_date": {
     "TSLA": "2026-07-21"
   },
-  "last_run": "2026-08-18T16:20:27.920853-04:00"
+  "last_run": "2026-08-19T09:44:34.258243-04:00"
 }
