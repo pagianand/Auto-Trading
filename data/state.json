@@ -17,10 +17,16 @@
       "strategy": "vwap_meanrev",
       "entry_price": 251.35000610351562,
       "entry_time": "2026-08-19T17:07:22.450436+00:00"
+    },
+    "AMD:vwap_meanrev": {
+      "symbol": "AMD",
+      "strategy": "vwap_meanrev",
+      "entry_price": 465.88299560546875,
+      "entry_time": "2026-08-19T17:37:35.749352+00:00"
     }
   },
   "orb_entered_date": {
     "TSLA": "2026-08-19"
   },
-  "last_run": "2026-08-19T13:07:19.337769-04:00"
+  "last_run": "2026-08-19T13:37:34.224435-04:00"
 }
