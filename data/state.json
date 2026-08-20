@@ -5,16 +5,10 @@
       "strategy": "vwap_meanrev",
       "entry_price": 467.7309875488281,
       "entry_time": "2026-08-20T13:47:21.764380+00:00"
-    },
-    "SNOW:vwap_meanrev": {
-      "symbol": "SNOW",
-      "strategy": "vwap_meanrev",
-      "entry_price": 319.8699951171875,
-      "entry_time": "2026-08-20T16:16:29.208287+00:00"
     }
   },
   "orb_entered_date": {
     "TSLA": "2026-08-19"
   },
-  "last_run": "2026-08-20T13:31:49.091790-04:00"
+  "last_run": "2026-08-20T13:59:23.598891-04:00"
 }
