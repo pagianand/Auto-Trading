@@ -1,7 +1,14 @@
 {
-  "open_positions": {},
+  "open_positions": {
+    "ARM:vwap_meanrev": {
+      "symbol": "ARM",
+      "strategy": "vwap_meanrev",
+      "entry_price": 250.50999450683594,
+      "entry_time": "2026-08-21T13:45:29.535620+00:00"
+    }
+  },
   "orb_entered_date": {
     "TSLA": "2026-08-19"
   },
-  "last_run": "2026-08-20T15:56:19.001135-04:00"
+  "last_run": "2026-08-21T09:45:27.326013-04:00"
 }
