@@ -11,10 +11,16 @@
       "strategy": "orb",
       "entry_price": 358.0299987792969,
       "entry_time": "2026-08-21T14:20:31.252596+00:00"
+    },
+    "ROKU:vwap_meanrev": {
+      "symbol": "ROKU",
+      "strategy": "vwap_meanrev",
+      "entry_price": 157.4600067138672,
+      "entry_time": "2026-08-21T19:32:53.699784+00:00"
     }
   },
   "orb_entered_date": {
     "TSLA": "2026-08-21"
   },
-  "last_run": "2026-08-21T15:02:17.233392-04:00"
+  "last_run": "2026-08-21T15:32:51.436357-04:00"
 }
