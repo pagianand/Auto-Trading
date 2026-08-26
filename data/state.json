@@ -6,10 +6,17 @@
       "entry_price": 348.9220886230469,
       "target_price": 372.1322753143311,
       "entry_time": "2026-08-25T13:51:08.913176+00:00"
+    },
+    "AMD:macd_trend": {
+      "symbol": "AMD",
+      "strategy": "macd_trend",
+      "entry_price": 488.5450134277344,
+      "target_price": 721.4646952819824,
+      "entry_time": "2026-08-26T13:55:06.656479+00:00"
     }
   },
   "orb_entered_date": {
     "TSLA": "2026-08-25"
   },
-  "last_run": "2026-08-25T15:54:17.538854-04:00"
+  "last_run": "2026-08-26T09:55:04.995162-04:00"
 }
