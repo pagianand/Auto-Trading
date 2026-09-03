@@ -7,12 +7,6 @@
       "target_price": 721.4646952819824,
       "entry_time": "2026-08-26T13:55:06.656479+00:00"
     },
-    "ROKU:vwap_meanrev": {
-      "symbol": "ROKU",
-      "strategy": "vwap_meanrev",
-      "entry_price": 157.39999389648438,
-      "entry_time": "2026-09-03T16:57:20.127431+00:00"
-    },
     "TSLA:orb": {
       "symbol": "TSLA",
       "strategy": "orb",
@@ -23,5 +17,5 @@
   "orb_entered_date": {
     "TSLA": "2026-09-03"
   },
-  "last_run": "2026-09-03T12:57:17.909300-04:00"
+  "last_run": "2026-09-03T15:41:50.623506-04:00"
 }
