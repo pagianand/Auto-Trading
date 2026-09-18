@@ -20,34 +20,10 @@
       "entry_price": 347.82000732421875,
       "target_price": 364.7530714416504,
       "entry_time": "2026-09-14T18:22:49.250580+00:00"
-    },
-    "META:vwap_meanrev": {
-      "symbol": "META",
-      "strategy": "vwap_meanrev",
-      "entry_price": 670.114990234375,
-      "entry_time": "2026-09-18T16:57:59.770597+00:00"
-    },
-    "SNOW:vwap_meanrev": {
-      "symbol": "SNOW",
-      "strategy": "vwap_meanrev",
-      "entry_price": 332.760009765625,
-      "entry_time": "2026-09-18T19:30:27.623317+00:00"
-    },
-    "AMD:vwap_meanrev": {
-      "symbol": "AMD",
-      "strategy": "vwap_meanrev",
-      "entry_price": 545.280029296875,
-      "entry_time": "2026-09-18T19:30:28.244292+00:00"
-    },
-    "GOOGL:vwap_meanrev": {
-      "symbol": "GOOGL",
-      "strategy": "vwap_meanrev",
-      "entry_price": 351.80999755859375,
-      "entry_time": "2026-09-18T19:30:28.982141+00:00"
     }
   },
   "orb_entered_date": {
     "TSLA": "2026-09-16"
   },
-  "last_run": "2026-09-18T15:30:26.485704-04:00"
+  "last_run": "2026-09-18T17:48:34.822448-04:00"
 }
