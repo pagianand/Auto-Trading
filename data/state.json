@@ -7,23 +7,22 @@
       "target_price": 721.4646952819824,
       "entry_time": "2026-08-26T13:55:06.656479+00:00"
     },
-    "ARM:macd_trend": {
-      "symbol": "ARM",
-      "strategy": "macd_trend",
-      "entry_price": 252.1750030517578,
-      "target_price": 327.77815767288206,
-      "entry_time": "2026-09-04T16:46:10.388326+00:00"
-    },
     "GOOGL:macd_trend": {
       "symbol": "GOOGL",
       "strategy": "macd_trend",
       "entry_price": 347.82000732421875,
       "target_price": 364.7530714416504,
       "entry_time": "2026-09-14T18:22:49.250580+00:00"
+    },
+    "META:vwap_meanrev": {
+      "symbol": "META",
+      "strategy": "vwap_meanrev",
+      "entry_price": 743.0900268554688,
+      "entry_time": "2026-09-22T17:32:37.618674+00:00"
     }
   },
   "orb_entered_date": {
     "TSLA": "2026-09-16"
   },
-  "last_run": "2026-09-21T14:30:23.374377-04:00"
+  "last_run": "2026-09-22T13:32:35.775616-04:00"
 }
