@@ -13,10 +13,22 @@
       "entry_price": 154.73500061035156,
       "target_price": 199.0714769744873,
       "entry_time": "2026-10-15T17:38:36.542583+00:00"
+    },
+    "ROKU:vwap_meanrev": {
+      "symbol": "ROKU",
+      "strategy": "vwap_meanrev",
+      "entry_price": 156.25999450683594,
+      "entry_time": "2026-10-27T18:34:32.513306+00:00"
+    },
+    "TSLA:orb": {
+      "symbol": "TSLA",
+      "strategy": "orb",
+      "entry_price": 405.9599914550781,
+      "entry_time": "2026-10-27T18:34:33.939062+00:00"
     }
   },
   "orb_entered_date": {
-    "TSLA": "2026-10-26"
+    "TSLA": "2026-10-27"
   },
-  "last_run": "2026-10-26T19:05:32.171954-04:00"
+  "last_run": "2026-10-27T14:34:25.746185-04:00"
 }
