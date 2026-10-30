@@ -13,10 +13,22 @@
       "entry_price": 154.73500061035156,
       "target_price": 199.0714769744873,
       "entry_time": "2026-10-15T17:38:36.542583+00:00"
+    },
+    "AMD:vwap_meanrev": {
+      "symbol": "AMD",
+      "strategy": "vwap_meanrev",
+      "entry_price": 495.8651123046875,
+      "entry_time": "2026-10-30T18:26:33.972263+00:00"
+    },
+    "TSLA:orb": {
+      "symbol": "TSLA",
+      "strategy": "orb",
+      "entry_price": 395.30999755859375,
+      "entry_time": "2026-10-30T18:26:36.290976+00:00"
     }
   },
   "orb_entered_date": {
-    "TSLA": "2026-10-27"
+    "TSLA": "2026-10-30"
   },
-  "last_run": "2026-10-29T19:01:05.848062-04:00"
+  "last_run": "2026-10-30T14:26:32.834967-04:00"
 }
